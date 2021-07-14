@@ -1,1 +1,12 @@
-import mnist
+{
+  "roots": {
+    "mnist_root": "dataset"
+  },
+  "links": {
+    "mnist_link": "https://data.deepai.org/mnist.zip",
+    "unzip_link_1": "curl -O http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz",
+    "unzip_link_2": "curl -O http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz",
+    "unzip_link_3": "curl -0 http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz",
+    "unzip_link_4": "curl -0 http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz"
+  }
+}

@@ -27,6 +27,10 @@ def conv_layer(input, conv_kernel, conv_strides, conv_padding="SAME", name="Conv
         return act
 
 
+def helloword():
+    print("hello world")
+
+
 def pool_layer(input, pool_kernel, pool_strides, pool_padding="VALID", name="Pool"):
     with tf.name_scope(name):
         pool = tf.nn.max_pool(input, ksize=pool_kernel, strides=pool_strides, padding=pool_padding)

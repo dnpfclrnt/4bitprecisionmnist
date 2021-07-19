@@ -9,5 +9,13 @@
     "bta1" : 0.9,
     "bta2" : 0.999,
     "epsln" : 1e-10
+  },
+  "1": {
+    "num_epochs": 50,
+    "learning_rate" : 1e-4,
+    "batch_size": 128,
+    "bta1" : 0.9,
+    "bta2" : 0.999,
+    "epsln" : 1e-10
   }
 }

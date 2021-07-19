@@ -1,1 +1,13 @@
-
+{
+  "roots": {
+    "save_root": "dataset_feature"
+  },
+  "0": {
+    "num_epochs": 2000,
+    "learning_rate" : 1e-4,
+    "batch_size": 128,
+    "bta1" : 0.9,
+    "bta2" : 0.999,
+    "epsln" : 1e-10
+  }
+}

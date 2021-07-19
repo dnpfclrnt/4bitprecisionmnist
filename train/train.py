@@ -1,125 +1,183 @@
 import os
-import tensorflow as tf
+import shutil
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import numpy as np
+import torch
+import torch.nn as nn
+import tqdm
+from dataclasses import dataclass
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+import torchvision
+import matplotlib.pyplot as plt
+import torchvision.transforms as TT
 
-LOGDIR = './mnist_tutorial/'
-
-
-def conv_layer(input, conv_kernel, conv_strides, conv_padding="SAME", name="Conv"):
-    with tf.name_scope(name):
-        w = tf.Variable(tf.truncated_normal(conv_kernel, mean=0.0, stddev=0.1), name="W")
-
-        b = tf.Variable(tf.constant(0.0, shape=[conv_kernel[3]]), name='b')
-
-        conv = tf.nn.conv2d(input, w, strides=conv_strides, padding=conv_padding)
-
-        batch_norm = tf.keras.layers.BatchNormalization(momentum=0.99, epsilon=0.001)(conv)
-
-        output = tf.nn.leaky_relu(batch_norm+b)
-
-        tf.summary.histogram("weights", w)
-        tf.summary.histogram("biases", b)
-        tf.summary.histogram("activations", output)
-
-        return output
+from model import QuadbitMnistModel
+from gen_data import DatasetGenerator
 
 
-def pool_layer(input, pool_kernel, pool_strides, pool_padding="VALID", name="Pool"):
-    with tf.name_scope(name):
-        pool_out = tf.nn.max_pool(input, ksize=pool_kernel, strides=pool_strides, padding=pool_padding)
-        return pool_out
+@dataclass()
+class TrainParams:
+    def __init__(self, train_config, **_extras):
+        super(TrainParams, self).__init__(**_extras)
+        self.num_epochs = train_config['num_epochs']
+        self.learning_rate = train_config['learning_rate']
+        self.batch_size = train_config['batch_size']
+        self.bta1 = train_config['bta1']
+        self.bta2 = train_config['bta2']
+        self.epsln = train_config['epsln']
 
 
-def fc_layer(input, size_in, size_out, dropoutProb=None, name="FC"):
-    with tf.name_scope(name):
-        w = tf.Variable(tf.truncated_normal([size_in, size_out], stddev=0.1), name="W")
-        b = tf.Variable(tf.constant(0.0, shape=[size_out]), name="B")
+def thresholding(prediction):
+    _, pred_label = torch.max(prediction, 1)
 
-        batch_norm = tf.keras.layers.BatchNormalization(momentum=0.99, epsilon=0.001)(input)
-
-        act=tf.nn.leaky_relu(tf.matmul(batch_norm, w) + b)
-
-        if dropoutProb is not None:
-            act = tf.nn.dropout(act, dropoutProb, name="dropout")
-
-        tf.summary.histogram("weights", w)
-        tf.summary.histogram("biases", b)
-        tf.summary.histogram("activations", act)
-        return act
+    return pred_label
 
 
-def CNN_model(x, n_classes, nShape, nchannels, dropout):
-    x = tf.reshape(x, [-1, nShape, nShape, nchannels])
-    tf.summary.image('input', x, 10)
-
-    conv1 = conv_layer(x, [3, 3, nchannels, 32], [1, 1, 1, 1], name="Conv_1")
-    pool1 = pool_layer(conv1, [1, 2, 2, 1], [1, 2, 2, 1], name="Pool_1")
-
-    conv2 = conv_layer(pool1, [3, 3, 32, 64], [1, 1, 1, 1], name="Conv_2")
-    pool2 = pool_layer(conv2, [1, 2, 2, 1], [1, 2, 2, 1], name="Pool_2")
-
-    conv3 = conv_layer(pool2, [3, 3, 64, 128], [1, 1, 1, 1], name="Conv_3")
-    pool3 = pool_layer(conv3, [1, 2, 2, 1], [1, 2, 2, 1], name="Pool_3")
-
-    pool3_shape = pool3.get_shape().as_list()
-    flattened = tf.reshape(pool3, [-1, pool3_shape[1]*pool3_shape[2]*pool3_shape[3]])
-
-    flattened_shape = flattened.get_shape().as_list()
-    fc1 = fc_layer(flattened, flattened_shape[1], 1024, dropoutProb=dropout, name="FC_1")
-
-    fc2 = fc_layer(fc1, 1024, 512, dropoutProb=dropout, name="FC_2")
-
-    Prediction = fc_layer(fc2, 512, n_classes, name="Predicted_Digit")
-    return Prediction
+def show_data(data, label):
+    # data shape : torch.Size([Batch_size, 1, 28, 28])
+    # label shape : torch.Size([4])
+    num_row = 2
+    num_col = 4
+    fig, axes = plt.subplots(num_row, num_col)
+    for i in range(8):
+        ax = axes[i // num_col, i % num_col]
+        ax.imshow(data[i, 0].cpu(), cmap='gray')
+        ax.set_title(f'label : {label[i].cpu().item()}')
+    plt.tight_layout()
+    plt.show()
 
 
-def Trainer():
+class Trainer:
+    def __init__(self, config_list, dataset=None, save_model=False):
+        train_params = TrainParams(config_list.train_config)
+        self.data_root = 'dataset/mnist/MNIST/'
+        self.num_epochs = train_params.num_epochs
+        self.learning_rate = train_params.learning_rate
+        self.batch_size = train_params.batch_size
+        self.bta1 = train_params.bta1
+        self.bta2 = train_params.bta2
+        self.epsln = train_params.epsln
+        self.save_model = save_model
+        self.config_list = config_list
 
-    minibatch_size = 128
-    lear_rate = 0.0001
-    bta1 = 0.9
-    bta2 = 0.999
-    epsln = 0.00000001
+        self.train_ver = config_list.train_config['version']
+        self.dataset_ver = config_list.dataset_config['version']
+        self.bit_ver = config_list.bit_config['version']
+        if dataset is None:
+            dataset_gen = DatasetGenerator(dataset_config=self.config_list.dataset_config,
+                                           save=True)
+            self.dataset = dataset_gen.gen_dataset()
+        else:
+            self.dataset = dataset
+        self.save = save_model
+        self.toPIL = TT.ToPILImage()
 
-    keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
-    ph_x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
-    ph_y = tf.placeholder(tf.float32, shape=[None, 10], name="labels")
+    def create_loaders(self):
+        train_loader = DataLoader(self.dataset.train_data,
+                                  batch_size=self.batch_size,
+                                  shuffle=True,
+                                  num_workers=4)
+        val_loader = DataLoader(self.dataset.val_data,
+                                batch_size=self.batch_size,
+                                shuffle=True,
+                                num_workers=4)
 
+        return train_loader, val_loader
 
-    Predicted_Digit_logits=CNN_model(ph_x, n_classes=10, nShape=28, nchannels=1, dropout=keep_prob)
+    def fit(self):
+        # create directory and tensorboard Summary Writer for version
+        version_all = '.'.join([self.dataset_ver,
+                                self.train_ver,
+                                self.bit_ver])
+        writer_path = 'runs/%s' % version_all
+        if os.path.isdir(writer_path):
+            print('train version already exists. removing content.')
+            shutil.rmtree(writer_path)
+        writer = SummaryWriter(writer_path)
 
-    with tf.name_scope("Loss"):
-        Digit_Softmax_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=Predicted_Digit_logits, labels=ph_y, name="Digit_softmax_loss"))
+        model = QuadbitMnistModel(n_pixel=28)
 
-        tf.summary.scalar("Digit_Softmax_loss", Digit_Softmax_loss)
+        train_loader, val_loader = self.create_loaders()
 
-    optimizer = tf.train.AdamOptimizer(learning_rate=lear_rate, beta1=bta1, beta2=bta2, epsilon=epsln).minimize(Digit_Softmax_loss)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if not torch.cuda.is_available():
+            print("=====================================\n"
+                  "GPU not available.\n"
+                  "To stop current process, press ctrl+c.\n"
+                  "=====================================")
+        model.to(device)
 
-    with tf.name_scope("Digit_classification_Accuracy"):
-        output_digit_softmax = tf.nn.softmax(Predicted_Digit_logits, name="output_digit_softmax")
-        Predicted_Digit = tf.cast(tf.argmax(output_digit_softmax, 1), tf.int32)
-        Label = tf.cast(tf.argmax(ph_y, 1), tf.int32)
-        Correct_Class = tf.equal(Predicted_Digit, Label)
-        Classification_accuracy = tf.reduce_mean(tf.cast(Correct_Class, tf.float32))
-        tf.summary.scalar("Digit_Classification_Acc", Classification_accuracy)
-    summ = tf.summary.merge_all()
+        train_loss_iter = np.zeros(self.num_epochs, dtype=float)
+        valid_loss_iter = np.zeros(self.num_epochs, dtype=float)
+        train_accuracy_iter = np.zeros(self.num_epochs, dtype=float)
+        valid_accuracy_iter = np.zeros(self.num_epochs, dtype=float)
 
-    saver = tf.train.Saver()
+        criterion = torch.nn.CrossEntropyLoss()
 
-    with tf.Session() as sess:
-        Train_writer = tf.summary.FileWriter(LOGDIR + '/Train', sess.graph)
-        Test_writer = tf.summary.FileWriter(LOGDIR + '/Test')
+        optimizer = torch.optim.Adam(model.parameters(),
+                                     lr=self.learning_rate,
+                                     betas=(self.bta1, self.bta2),
+                                     eps=self.epsln)
 
-        sess.run(tf.global_variables_initializer())
-        for itr in range(2001):
-            batch = mnist.train.next_batch(batch_size=minibatch_size)
-            _ = sess.run([optimizer], feed_dict={ph_x: batch[0], ph_y: batch[1], keep_prob: 0.5})
-            if itr %10 == 0:
-                [train_acc, s] = sess.run([Classification_accuracy, summ], feed_dict={ph_x: batch[0], ph_y:batch[1], keep_prob:1.0})
-                Train_writer.add_summary(s, itr)
-                [test_acc, s] = sess.run([Classification_accuracy, summ], feed_dict={ph_x:mnist.test.images, ph_y:mnist.test.labels, keep_prob:1.0})
+        for epoch in range(self.num_epochs):
+            # Training process beginning
+            total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
 
-                print('@ iteration: %i, Training ACC. = %.6f, Test Acc. = %.6f'%(itr, train_acc, test_acc))
-                Test_writer.add_summary(s, itr)
-                saver.save(sess, os.path.join(LOGDIR, "model.ckpt"), itr)
+            for batch_idx, (x, target) in enumerate(train_loader):
+                if torch.cuda.is_available():
+                    x, target = x.cuda(), target.cuda()
+
+                prediction = model(x)
+
+                optimizer.zero_grad()
+                loss = criterion(prediction, target)
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+                total_cnt += x.data.size(0)
+                correct_cnt += (thresholding(prediction) ==
+                                target.data).sum().item()
+
+            accuracy = correct_cnt * 1.0 / total_cnt
+            train_loss_iter[epoch] = total_loss / total_cnt
+            train_accuracy_iter[epoch] = accuracy
+
+            # Validation process beginning
+            total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
+
+            writer.add_scalar('Train_Loss', total_loss, epoch)
+            writer.add_scalar('Train Accuracy', accuracy, epoch)
+
+            for batch_idx, (x, target) in enumerate(val_loader):
+                with torch.no_grad():
+                    model.eval()
+                    if torch.cuda.is_available():
+                        x, target = x.cuda(), target.cuda()
+
+                    prediction = model(x)
+                    loss = criterion(prediction, target)
+
+                    total_loss += loss.item()
+                    total_cnt += x.data.size(0)
+                    correct_cnt += (thresholding(prediction) == target.data).sum().item()
+
+            accuracy = correct_cnt * 1.0 / total_cnt
+            valid_loss_iter[epoch] = total_loss / total_cnt
+            valid_accuracy_iter[epoch] = accuracy
+
+            writer.add_scalar('Valid_Loss', total_loss, epoch)
+            writer.add_scalar('Valid Accuracy', accuracy, epoch)
+
+            if epoch % 10 == 0:
+                print(f"[{epoch}/{self.num_epochs}]\n"
+                      f"Train Loss : {train_loss_iter[epoch]:.4f} Train Acc : {train_accuracy_iter[epoch]:.2f} \n"
+                      f"Valid Loss : {valid_loss_iter[epoch]:.4f} Valid Acc : {valid_accuracy_iter[epoch]:.2f}")
+
+        writer.close()
+        if self.save_model:
+            save_root = f'models/{version_all}'
+            os.makedirs(save_root)
+            torch.save(model.state_dict(),
+                       os.path.join(save_root, 'model.ckpt'))

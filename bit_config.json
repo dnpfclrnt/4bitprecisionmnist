@@ -1,0 +1,7 @@
+{
+  "roots": {
+    "data_root": "database/mnist"
+    "save_root": "dataset_raw",
+    "metadata_file": "metadata.json"
+  }
+}

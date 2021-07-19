@@ -7,6 +7,6 @@
     "mnist_link": "https://data.deepai.org/mnist.zip"
   },
   "0": {
-    
+    "transform": "transforms.Compose([transforms.ToTensor(),])"
   }
 }

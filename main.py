@@ -45,9 +45,9 @@ def create_data(config_list, save: bool = True):
     return gen_data.gen_dataset()
 
 
-def train(config_list, save_model=False):
+def train(config_list, dataset=None, save_model=False):
     from train import Trainer
-    trainer = Trainer(config_list, save_model=save_model)
+    trainer = Trainer(config_list, dataset=dataset, save_model=save_model)
     trainer.fit()
 
 
@@ -87,15 +87,11 @@ def main():
     config_list = Configs(config_root=args.config_root, versions=parsed_ver)
     if args.mode == 'data':
         create_data(config_list)
-    elif args.mode == 'bit':
-        quantize(config_list)
     elif args.mode == 'train':
         train(config_list)
     else:
-        raw_meta = quantize(config_list, args.save)
-        feature_meta = raw_meta
-        train(config_list, feature_meta=feature_meta,
-              save_model=args.save_model)
+        mnist = create_data(config_list, save=True)
+        train(config_list, dataset=mnist, save_model=args.save_model)
 
 
 if __name__ == '__main__':

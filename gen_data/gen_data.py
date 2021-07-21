@@ -1,17 +1,15 @@
 import os
 import shutil
-import tensorflow as tf
-#import tensorflow.contrib.learn.datasets.mnist as mnist_data
 import torchvision.datasets as mnist_data
 import wget
+
 
 class DatasetParams:
     def __init__(self, dataset_config):
         self.mnist_root = dataset_config['mnist_root']
-
         self.mnist_link = dataset_config['mnist_link']
-
         self.version = dataset_config['version']
+        self.transform = dataset_config['transform']
 
 
 def make_database(dataset_param):
@@ -47,7 +45,8 @@ class DatasetGenerator:
         self.dataset_path = os.path.join("./", self.dataset_param.mnist_root)
 
     def gen_dataset(self):
-        mnist = mnist_data.MNIST(root=self.dataset_path, train=True, download=True)
+        mnist = mnist_data.MNIST(root=self.dataset_path, train=True, download=True,
+                                 transform=self.dataset_param.transform)
         return mnist
 
 

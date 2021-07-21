@@ -87,12 +87,9 @@ def main():
     config_list = Configs(config_root=args.config_root, versions=parsed_ver)
     if args.mode == 'data':
         create_data(config_list)
-    elif args.mode == 'bit':
-        quantize(config_list)
     elif args.mode == 'train':
         train(config_list)
     else:
-        raw_meta = quantize(config_list, args.save)
         feature_meta = raw_meta
         train(config_list, feature_meta=feature_meta,
               save_model=args.save_model)

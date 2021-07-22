@@ -4,6 +4,7 @@ import torchvision.datasets as mnist_data
 import wget
 import torchvision.transforms as transforms
 
+
 class DatasetParams:
     def __init__(self, dataset_config):
         self.mnist_root = dataset_config['mnist_root']

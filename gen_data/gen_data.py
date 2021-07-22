@@ -2,6 +2,7 @@ import os
 import shutil
 import torchvision.datasets as mnist_data
 import wget
+import torchvision.transforms as transforms
 
 
 class DatasetParams:
@@ -40,13 +41,14 @@ def make_database(dataset_param):
 
 
 class DatasetGenerator:
-    def __init__(self, dataset_config, save):
+    def __init__(self, dataset_config, save=True):
         self.dataset_param = DatasetParams(dataset_config)
         self.dataset_path = os.path.join("./", self.dataset_param.mnist_root)
+        self.save = save
 
     def gen_dataset(self):
-        mnist = mnist_data.MNIST(root=self.dataset_path, train=True, download=True,
-                                 transform=self.dataset_param.transform)
+        mnist = mnist_data.MNIST(root=self.dataset_path, train=True, download=self.save,
+                                 transform=transforms.ToTensor())
         return mnist
 
 

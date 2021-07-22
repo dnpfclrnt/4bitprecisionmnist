@@ -16,19 +16,19 @@ def conv_layer(input, conv_kernel, conv_strides, conv_padding="SAME", name="Conv
 
         batch_norm = tf.keras.layers.BatchNormalization(momentum=0.99, epsilon=0.001)(conv)
 
-        act = tf.nn.leaky_relu(batch_norm+b)
+        output = tf.nn.leaky_relu(batch_norm+b)
 
         tf.summary.histogram("weights", w)
         tf.summary.histogram("biases", b)
-        tf.summary.histogram("activations", act)
+        tf.summary.histogram("activations", output)
 
-        return act
+        return output
 
 
 def pool_layer(input, pool_kernel, pool_strides, pool_padding="VALID", name="Pool"):
     with tf.name_scope(name):
-        pool = tf.nn.max_pool(input, ksize=pool_kernel, strides=pool_strides, padding=pool_padding)
-        return pool
+        pool_out = tf.nn.max_pool(input, ksize=pool_kernel, strides=pool_strides, padding=pool_padding)
+        return pool_out
 
 
 def fc_layer(input, size_in, size_out, dropoutProb=None, name="FC"):

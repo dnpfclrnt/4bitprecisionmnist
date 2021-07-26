@@ -35,5 +35,3 @@ class DatasetGenerator:
         dataset = Dataset(train_data=train_data,
                           val_data=val_data)
         return dataset
-
-

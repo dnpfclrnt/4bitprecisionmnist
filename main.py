@@ -90,7 +90,7 @@ def main():
     elif args.mode == 'train':
         train(config_list)
     else:
-        mnist = create_data(config_list, save=True)
+        mnist = create_data(config_list, save=False)
         train(config_list, dataset=mnist, save_model=args.save_model)
 
 

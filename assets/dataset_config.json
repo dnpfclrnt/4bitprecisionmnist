@@ -1,6 +1,6 @@
 {
   "roots": {
-    "mnist_root": "dataset/mnist",
+    "mnist_root": "database/mnist",
     "save_root": "dataset_raw"
   },
   "links": {

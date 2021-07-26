@@ -3,12 +3,9 @@ import shutil
 
 import numpy as np
 import torch
-import torch.nn as nn
-import tqdm
 from dataclasses import dataclass
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import torchvision
 import matplotlib.pyplot as plt
 import torchvision.transforms as TT
 

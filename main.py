@@ -98,7 +98,7 @@ def main():
         data = create_data(config_list, save=False)
         train(config_list, dataset=data,
               save_model=args.save_model,
-              quantize=args.quantize_traian)
+              quantize=args.quantize_train)
 
 
 if __name__ == '__main__':

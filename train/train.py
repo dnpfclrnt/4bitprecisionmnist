@@ -226,7 +226,7 @@ class Trainer:
                         if torch.cuda.is_available():
                             x, target = x.cuda(), target.cuda()
                         quant_trainer=QuantAwareTraining(model=model, num_bits=4, act_quant=True)
-                        prediction, conv1weight, conv2weight = quant_trainer.quantAwareTrainingForward(x, stats)
+                        prediction, conv1weight, conv2weight, _ = quant_trainer.quantAwareTrainingForward(x, stats)
 
                         model.conv1.weight.data = conv1weight
                         model.conv2.weight.data = conv2weight

@@ -46,7 +46,7 @@ def show_data(data, label):
 
 
 class Trainer:
-    def __init__(self, config_list, dataset=None, save_model=False, quantize=False):
+    def __init__(self, config_list, dataset=None, save_model=False):
         train_params = TrainParams(config_list.train_config)
         self.data_root = 'dataset/mnist/MNIST/'
         self.num_epochs = train_params.num_epochs
@@ -68,7 +68,6 @@ class Trainer:
         else:
             self.dataset = dataset
         self.save = save_model
-        self.quantize=quantize
 
     def create_loaders(self):
         train_loader = DataLoader(self.dataset.train_data,
@@ -82,7 +81,7 @@ class Trainer:
 
         return train_loader, val_loader
 
-    def fit(self):
+    def fit(self, quantize=False):
         # create directory and tensorboard Summary Writer for version
         version_all = '.'.join([self.dataset_ver,
                                 self.train_ver,
@@ -117,7 +116,7 @@ class Trainer:
                                      betas=(self.bta1, self.bta2),
                                      eps=self.epsln)
 
-        if self.quantize:
+        if quantize:
             for epoch in range(self.num_epochs):
                 # Training process beginning
                 total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0

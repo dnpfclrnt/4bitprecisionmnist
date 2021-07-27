@@ -57,7 +57,7 @@ def quantize_tensor(x, num_bits=8, min_val=None, max_val=None):
 def dequantize_tensor(q_x):
     return q_x.scale * (q_x.tensor.float() - q_x.zero_point)
 
-
+"""
 def quantize_tensor_sym(x, num_bits=8, min_val=None, max_val=None):
     if not min_val and not max_val:
         min_val, max_val = x.min(), x.max()
@@ -77,7 +77,7 @@ def quantize_tensor_sym(x, num_bits=8, min_val=None, max_val=None):
 
 def dequantize_tensor_sym(q_x):
     return q_x.scale * (q_x.tensor.float())
-
+"""
 
 # Get Min and max of x tensor, and stores it
 def updateStats(x, stats, key):
@@ -169,8 +169,8 @@ class FakeQuantOp(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, num_bits=8, min_val=None, max_val=None):
         x = quantize_tensor(x,num_bits=num_bits, min_val=min_val, max_val=max_val)
-        x = dequantize_tensor(x)
-        return x
+        #x = dequantize_tensor(x)
+        return x.tensor.float()
 
     @staticmethod
     def backward(ctx, grad_output):

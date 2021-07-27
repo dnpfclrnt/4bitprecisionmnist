@@ -1,1 +1,1 @@
-from .model import QuadbitMnistModel
+from .model import QuadbitMnistModel, QuantAwareTraining

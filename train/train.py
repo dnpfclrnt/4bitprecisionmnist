@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 import torchvision.transforms as TT
 
-from model import QuadbitMnistModel
+from model import QuadbitMnistModel, QuantAwareTraining
 from gen_data import DatasetGenerator
 
 
@@ -46,7 +46,7 @@ def show_data(data, label):
 
 
 class Trainer:
-    def __init__(self, config_list, dataset=None, save_model=False):
+    def __init__(self, config_list, dataset=None, save_model=False, quantize=False):
         train_params = TrainParams(config_list.train_config)
         self.data_root = 'dataset/mnist/MNIST/'
         self.num_epochs = train_params.num_epochs
@@ -68,7 +68,7 @@ class Trainer:
         else:
             self.dataset = dataset
         self.save = save_model
-        self.toPIL = TT.ToPILImage()
+        self.quantize=quantize
 
     def create_loaders(self):
         train_loader = DataLoader(self.dataset.train_data,
@@ -117,64 +117,136 @@ class Trainer:
                                      betas=(self.bta1, self.bta2),
                                      eps=self.epsln)
 
-        for epoch in range(self.num_epochs):
-            # Training process beginning
-            total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
+        if self.quantize:
+            for epoch in range(self.num_epochs):
+                # Training process beginning
+                total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
 
-            for batch_idx, (x, target) in enumerate(train_loader):
-                if torch.cuda.is_available():
-                    x, target = x.cuda(), target.cuda()
-
-                prediction = model(x)
-
-                optimizer.zero_grad()
-                loss = criterion(prediction, target)
-                loss.backward()
-                optimizer.step()
-
-                total_loss += loss.item()
-                total_cnt += x.data.size(0)
-                correct_cnt += (thresholding(prediction) ==
-                                target.data).sum().item()
-
-            accuracy = correct_cnt * 1.0 / total_cnt
-            train_loss_iter[epoch] = total_loss / total_cnt
-            train_accuracy_iter[epoch] = accuracy
-
-            # Validation process beginning
-            total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
-
-            writer.add_scalar('Train_Loss', total_loss, epoch)
-            writer.add_scalar('Train Accuracy', accuracy, epoch)
-
-            for batch_idx, (x, target) in enumerate(val_loader):
-                with torch.no_grad():
-                    model.eval()
+                for batch_idx, (x, target) in enumerate(train_loader):
                     if torch.cuda.is_available():
                         x, target = x.cuda(), target.cuda()
 
                     prediction = model(x)
+
+                    optimizer.zero_grad()
                     loss = criterion(prediction, target)
+                    loss.backward()
+                    optimizer.step()
 
                     total_loss += loss.item()
                     total_cnt += x.data.size(0)
-                    correct_cnt += (thresholding(prediction) == target.data).sum().item()
+                    correct_cnt += (thresholding(prediction) ==
+                                    target.data).sum().item()
 
-            accuracy = correct_cnt * 1.0 / total_cnt
-            valid_loss_iter[epoch] = total_loss / total_cnt
-            valid_accuracy_iter[epoch] = accuracy
+                accuracy = correct_cnt * 1.0 / total_cnt
+                train_loss_iter[epoch] = total_loss / total_cnt
+                train_accuracy_iter[epoch] = accuracy
 
-            writer.add_scalar('Valid_Loss', total_loss, epoch)
-            writer.add_scalar('Valid Accuracy', accuracy, epoch)
+                # Validation process beginning
+                total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
 
-            if epoch % 10 == 0:
-                print(f"[{epoch}/{self.num_epochs}]\n"
-                      f"Train Loss : {train_loss_iter[epoch]:.4f} Train Acc : {train_accuracy_iter[epoch]:.2f} \n"
-                      f"Valid Loss : {valid_loss_iter[epoch]:.4f} Valid Acc : {valid_accuracy_iter[epoch]:.2f}")
+                writer.add_scalar('Train_Loss', total_loss, epoch)
+                writer.add_scalar('Train Accuracy', accuracy, epoch)
 
-        writer.close()
-        if self.save_model:
-            save_root = f'models/{version_all}'
-            os.makedirs(save_root)
-            torch.save(model.state_dict(),
-                       os.path.join(save_root, 'model.ckpt'))
+                for batch_idx, (x, target) in enumerate(val_loader):
+                    with torch.no_grad():
+                        model.eval()
+                        if torch.cuda.is_available():
+                            x, target = x.cuda(), target.cuda()
+
+                        prediction = model(x)
+                        loss = criterion(prediction, target)
+
+                        total_loss += loss.item()
+                        total_cnt += x.data.size(0)
+                        correct_cnt += (thresholding(prediction) == target.data).sum().item()
+
+                accuracy = correct_cnt * 1.0 / total_cnt
+                valid_loss_iter[epoch] = total_loss / total_cnt
+                valid_accuracy_iter[epoch] = accuracy
+
+                writer.add_scalar('Valid_Loss', total_loss, epoch)
+                writer.add_scalar('Valid Accuracy', accuracy, epoch)
+
+                if epoch % 10 == 0:
+                    print(f"[{epoch}/{self.num_epochs}]\n"
+                          f"Train Loss : {train_loss_iter[epoch]:.4f} Train Acc : {train_accuracy_iter[epoch]:.2f} \n"
+                          f"Valid Loss : {valid_loss_iter[epoch]:.4f} Valid Acc : {valid_accuracy_iter[epoch]:.2f}")
+
+            writer.close()
+            if self.save_model:
+                save_root = f'models/{version_all}'
+                os.makedirs(save_root)
+                torch.save(model.state_dict(),
+                           os.path.join(save_root, 'model.ckpt'))
+        else:
+            for epoch in range(self.num_epochs):
+                # Training process beginning
+                total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
+                model.train()
+                for batch_idx, (x, target) in enumerate(train_loader):
+                    if torch.cuda.is_available():
+                        x, target = x.cuda(), target.cuda()
+                    optimizer.zero_grad()
+                    quant_trainer = QuantAwareTraining(model=model, num_bits=4, act_quant=True)
+                    prediction, conv1weight, conv2weight, stats = quant_trainer.quantAwareTrainingForward(x, stats)
+
+                    model.conv1.weight.data = conv1weight
+                    model.conv2.weight.data = conv2weight
+
+                    loss = criterion(prediction, target)
+                    loss.backward()
+                    optimizer.step()
+
+                    total_loss += loss.item()
+                    total_cnt += x.data.size(0)
+                    correct_cnt += (thresholding(prediction) ==
+                                    target.data).sum().item()
+
+                accuracy = correct_cnt * 1.0 / total_cnt
+                train_loss_iter[epoch] = total_loss / total_cnt
+                train_accuracy_iter[epoch] = accuracy
+
+                # Validation process beginning
+                total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
+
+                writer.add_scalar('Train_Loss', total_loss, epoch)
+                writer.add_scalar('Train Accuracy', accuracy, epoch)
+
+                for batch_idx, (x, target) in enumerate(val_loader):
+                    with torch.no_grad():
+                        model.eval()
+                        if torch.cuda.is_available():
+                            x, target = x.cuda(), target.cuda()
+                        quant_trainer=QuantAwareTraining(model=model, num_bits=4, act_quant=True)
+                        prediction, conv1weight, conv2weight = quant_trainer.quantAwareTrainingForward(x, stats)
+
+                        model.conv1.weight.data = conv1weight
+                        model.conv2.weight.data = conv2weight
+
+                        loss = criterion(prediction, target)
+
+                        total_loss += loss.item()
+                        total_cnt += x.data.size(0)
+                        correct_cnt += (thresholding(prediction) == target.data).sum().item()
+
+                accuracy = correct_cnt * 1.0 / total_cnt
+                valid_loss_iter[epoch] = total_loss / total_cnt
+                valid_accuracy_iter[epoch] = accuracy
+
+                writer.add_scalar('Valid_Loss', total_loss, epoch)
+                writer.add_scalar('Valid Accuracy', accuracy, epoch)
+
+                if epoch % 10 == 0:
+                    print(f"[{epoch}/{self.num_epochs}]\n"
+                          f"Train Loss : {train_loss_iter[epoch]:.4f} Train Acc : {train_accuracy_iter[epoch]:.2f} \n"
+                          f"Valid Loss : {valid_loss_iter[epoch]:.4f} Valid Acc : {valid_accuracy_iter[epoch]:.2f}")
+
+            writer.close()
+            if self.save_model:
+                save_root = f'models/{version_all}'
+                if not os.path.isdir(save_root):
+                    os.makedirs(save_root)
+                torch.save(model.state_dict(),
+                           os.path.join(save_root, 'quant_model.ckpt'))
+

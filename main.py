@@ -9,6 +9,9 @@ DATASET_CONFIG_FILE = 'dataset_config.json'
 TRAIN_CONFIG_FILE = 'train_config.json'
 
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+
 @dataclass
 class Configs:
     def __init__(self, config_root, versions):
@@ -45,10 +48,12 @@ def create_data(config_list, save: bool = True):
     return gen_data.gen_dataset()
 
 
-def train(config_list, dataset=None, save_model=False):
+def train(config_list, dataset=None, save_model=False, quantize=False):
     from train import Trainer
-    trainer = Trainer(config_list, dataset=dataset, save_model=save_model)
-    trainer.fit()
+    trainer = Trainer(config_list,
+                      dataset=dataset,
+                      save_model=save_model)
+    trainer.fit(quantize=quantize)
 
 
 def parse_ver(version_raw):
@@ -80,7 +85,7 @@ def main():
     p.add_argument('--config_root', type=str, default='./assets')
     p.add_argument('-s', '--save', type=bool, default=False)
     p.add_argument('--save_model', type=bool, default=False)
-
+    p.add_argument('--quantize_train', type=bool, default=False)
     args = p.parse_args()
 
     parsed_ver = parse_ver(args.version)
@@ -90,8 +95,10 @@ def main():
     elif args.mode == 'train':
         train(config_list)
     else:
-        mnist = create_data(config_list, save=False)
-        train(config_list, dataset=mnist, save_model=args.save_model)
+        data = create_data(config_list, save=False)
+        train(config_list, dataset=data,
+              save_model=args.save_model,
+              quantize=args.quantize_traian)
 
 
 if __name__ == '__main__':

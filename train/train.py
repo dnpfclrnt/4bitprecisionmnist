@@ -116,7 +116,8 @@ class Trainer:
                                      betas=(self.bta1, self.bta2),
                                      eps=self.epsln)
 
-        if quantize:
+        if not quantize:
+            print("Training w/o quantization")
             for epoch in range(self.num_epochs):
                 # Training process beginning
                 total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0
@@ -179,6 +180,7 @@ class Trainer:
                 torch.save(model.state_dict(),
                            os.path.join(save_root, 'model.ckpt'))
         else:
+            print("Training with quantization")
             for epoch in range(self.num_epochs):
                 # Training process beginning
                 total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0

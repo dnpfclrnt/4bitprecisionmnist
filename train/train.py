@@ -181,6 +181,12 @@ class Trainer:
                            os.path.join(save_root, 'model.ckpt'))
         else:
             print("Training with quantization")
+
+            args = {}
+            log_interval = 500
+            args["log_interval"] = log_interval
+            stats = {}
+
             for epoch in range(self.num_epochs):
                 # Training process beginning
                 total_loss, total_cnt, correct_cnt = 0.0, 0.0, 0.0

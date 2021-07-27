@@ -137,6 +137,25 @@ class QuadbitMnistModel(nn.Module):
         self.batchnorm3 = nn.BatchNorm2d(num_features=128)
         self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.conv3 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+        self.conv4 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+        self.conv5 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+        self.conv6 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+        self.conv7 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+        self.conv8 = nn.Conv2d(in_channels=64, out_channels=64,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+                               padding_mode="replicate")
+
         self.fc1 = nn.Linear(in_features=64 * (n_pixel ** 2), out_features=1024)
         self.fc2 = nn.Linear(in_features=1024, out_features=10)
         self.dropout = nn.Dropout(p=.5)
@@ -149,6 +168,12 @@ class QuadbitMnistModel(nn.Module):
         x = self.maxpool1(x)
 
         x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.conv6(x)
+        x = self.conv7(x)
+        x = self.conv8(x)
         x = self.batchnorm2(x)
         x = self.relu(x)
         x = self.maxpool2(x)

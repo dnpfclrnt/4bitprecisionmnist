@@ -131,11 +131,11 @@ class QuadbitMnistModel(nn.Module):
 
         n_pixel = n_pixel // 2
 
-        self.conv3 = nn.Conv2d(in_channels=64, out_channels=128,
-                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
-                               padding_mode="replicate")
-        self.batchnorm3 = nn.BatchNorm2d(num_features=128)
-        self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+        #self.conv3 = nn.Conv2d(in_channels=64, out_channels=128,
+        #                       kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
+        #                       padding_mode="replicate")
+        #self.batchnorm3 = nn.BatchNorm2d(num_features=128)
+        #self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
 
         self.conv3 = nn.Conv2d(in_channels=64, out_channels=64,
                                kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),
